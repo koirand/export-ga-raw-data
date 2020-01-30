@@ -1,2 +1,4 @@
 credentials.json
-ga.csv
+build/
+*.csv
+*.zip
