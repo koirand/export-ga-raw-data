@@ -6,6 +6,10 @@ insert_final_newline = true
 charset = utf-8
 trim_trailing_whitespace = true
 
-[*.go]
+[{*.go,Makefile}]
 indent_style = tab
+indent_size = 4
+
+[*.md]
+trim_trailing_whitespace = false
 indent_size = 4
