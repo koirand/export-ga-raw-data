@@ -1,9 +1,11 @@
 package main
 
 import (
-	"fmt"
 	"log"
+	"os"
 	"strings"
+
+	"encoding/csv"
 
 	"golang.org/x/net/context"
 	"google.golang.org/api/analytics/v3"
@@ -11,30 +13,44 @@ import (
 )
 
 const credentialsPath = "./credentials.json"
+const outputPath = "./ga.csv"
 const viewID = "208412389"
 const startDate = "90daysAgo"
 const endDate = "yesterday"
 
 func main() {
+	// アウトプットファイル作成
+	out, err := createCsvFile(outputPath)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	defer out.Close()
+
+	// サービス取得
 	s, err := getService()
 	if err != nil {
 		log.Fatalln(err)
 	}
 
+	// rawデータ取得
 	results, err := s.Data.Ga.Get("ga:"+viewID, startDate, endDate, "ga:pageviews").
 		Output("json").
 		Dimensions(strings.Join([]string{
 			"ga:clientId",
 			"ga:pagePath",
+			"ga:pageTitle",
 			"ga:dateHourMinute",
 		}, ",")).
 		Do()
 	if err != nil {
 		log.Fatalln(err)
 	}
+
+	// ファイル出力
 	for _, row := range results.Rows {
-		fmt.Println(strings.Join(row, ","))
+		out.Write(row)
 	}
+	out.Flush()
 }
 
 func getService() (*analytics.Service, error) {
@@ -44,4 +60,31 @@ func getService() (*analytics.Service, error) {
 		return nil, err
 	}
 	return as, nil
+}
+
+type CsvFile struct {
+	File   *os.File
+	Writer *csv.Writer
+}
+
+func (c *CsvFile) Close() {
+	c.File.Close()
+}
+
+func (c *CsvFile) Write(record []string) {
+	c.Writer.Write(record)
+}
+
+func (c *CsvFile) Flush() {
+	c.Writer.Flush()
+}
+func createCsvFile(fileName string) (*CsvFile, error) {
+	file, err := os.Create(fileName)
+	if err != nil {
+		return nil, err
+	}
+	return &CsvFile{
+		File:   file,
+		Writer: csv.NewWriter(file),
+	}, nil
 }
