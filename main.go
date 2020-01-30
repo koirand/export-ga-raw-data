@@ -17,10 +17,11 @@ const outputPath = "./ga.csv"
 const viewID = "208412389"
 const startDate = "90daysAgo"
 const endDate = "yesterday"
+const itemsPerPage int64 = 1000
 
 func main() {
 	// アウトプットファイル作成
-	out, err := createCsvFile(outputPath)
+	out, err := newCsvFile(outputPath)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -32,25 +33,34 @@ func main() {
 		log.Fatalln(err)
 	}
 
-	// rawデータ取得
-	results, err := s.Data.Ga.Get("ga:"+viewID, startDate, endDate, "ga:pageviews").
-		Output("json").
-		Dimensions(strings.Join([]string{
-			"ga:clientId",
-			"ga:pagePath",
-			"ga:pageTitle",
-			"ga:dateHourMinute",
-		}, ",")).
-		Do()
-	if err != nil {
-		log.Fatalln(err)
-	}
+	var page int64 = 0
+	for {
+		// rawデータ取得
+		results, err := s.Data.Ga.Get("ga:"+viewID, startDate, endDate, "ga:pageviews").
+			Output("json").
+			Dimensions(strings.Join([]string{
+				"ga:clientId",
+				"ga:pagePath",
+				"ga:pageTitle",
+				"ga:dateHourMinute",
+			}, ",")).
+			StartIndex(1 + itemsPerPage*page).
+			Do()
+		if err != nil {
+			log.Fatalln(err)
+		}
 
-	// ファイル出力
-	for _, row := range results.Rows {
-		out.Write(row)
+		// 出力
+		for _, row := range results.Rows {
+			out.Write(row)
+		}
+		out.Flush()
+
+		if results.NextLink == "" {
+			break
+		}
+		page++
 	}
-	out.Flush()
 }
 
 func getService() (*analytics.Service, error) {
@@ -78,7 +88,7 @@ func (c *CsvFile) Write(record []string) {
 func (c *CsvFile) Flush() {
 	c.Writer.Flush()
 }
-func createCsvFile(fileName string) (*CsvFile, error) {
+func newCsvFile(fileName string) (*CsvFile, error) {
 	file, err := os.Create(fileName)
 	if err != nil {
 		return nil, err
